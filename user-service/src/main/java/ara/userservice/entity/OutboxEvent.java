@@ -23,13 +23,13 @@ public class OutboxEvent {
     private String aggregateId;
 
     @Column(nullable = false)
-    private String aggregateType; // "USER" или "AUTH" (помогает Debezium маршрутизировать топики)
+    private String aggregateType; 
 
     @Column(nullable = false)
-    private String type; // Тип события, например: "USER_REGISTERED", "EMAIL_VERIFICATION_REQUSTED"
+    private String type; 
 
     @Column(columnDefinition = "jsonb", nullable = false)
-    private String payload; // Весь твой JSON (username, email, code и т.д.) без пароля!
+    private String payload; 
 
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
