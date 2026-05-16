@@ -1,0 +1,12 @@
+spring:
+  application:
+    name: user-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/postgres
+    username: postgres
+    password: GFGF18101961
+  jpa:
+    hibernate:
+      ddl-auto: update
+server:
+  port: 9092
