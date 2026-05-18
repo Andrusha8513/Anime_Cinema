@@ -1,0 +1,30 @@
+POST http://localhost:8083/connectors
+Content-Type: application/json
+
+{
+  "name": "user-service-outbox-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "database.hostname": "postgres",
+    "database.port": "5432",
+    "database.user": "postgres",
+    "database.password": "GFGF18101961",
+    "database.dbname": "postgres",
+    "topic.prefix": "user_service",
+    "plugin.name": "pgoutput",
+    "table.include.list": "public.outbox_events",
+    "transforms": "outbox",
+    "transforms.outbox.type": "io.debezium.transforms.outbox.EventRouter",
+    "transforms.outbox.table.field.event.id": "id",
+    "transforms.outbox.table.field.event.payload": "payload",
+    "transforms.outbox.table.field.event.timestamp": "created_at",
+    "transforms.outbox.table.field.event.aggregate.id": "aggregate_id",
+    "transforms.outbox.table.field.event.aggregate.type": "aggregate_type",
+    "transforms.outbox.route.by.field": "aggregate_type",
+    "transforms.outbox.table.fields.additional.placement": "type:header:eventType"
+  }
+}
+
+
+###
+GET http://localhost:8083/connectors/user-service-outbox-connector/status

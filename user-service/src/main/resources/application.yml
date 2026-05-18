@@ -2,11 +2,19 @@ spring:
   application:
     name: user-service
   datasource:
-    url: jdbc:postgresql://localhost:5432/postgres
+    url: jdbc:postgresql://localhost:5433/postgres
     username: postgres
     password: GFGF18101961
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: create-drop
+  data:
+    redis:
+      host: localhost
+      port: 6379
 server:
-  port: 9092
+  port: 9999
+app:
+  confirmation:
+    key-prefix: "email:confirm:"
+    ttl-minutes: 15

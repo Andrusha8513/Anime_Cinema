@@ -1,4 +1,4 @@
-package ara.userservice.email;
+package ara.userservice.eventType;
 
 public enum EmailType {
     REGISTRATION,

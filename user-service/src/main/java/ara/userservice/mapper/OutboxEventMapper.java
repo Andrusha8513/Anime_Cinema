@@ -22,4 +22,19 @@ public interface OutboxEventMapper {
     @Mapping(target = "type", constant = "EMAIL_REGISTRATION")
     @Mapping(target = "payload", source = "payload")
     OutboxEvent toEmailEvent(UUID userId, String payload);
+
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "aggregateId", expression = "java(userId.toString())")
+    @Mapping(target = "aggregateType", constant = "USER")
+    @Mapping(target = "type", constant = "CONFIRMATION_CODE_SAVE")
+    @Mapping(target = "payload", source = "payload")
+    @Mapping(target = "processed", constant = "false")
+    OutboxEvent toCodeEvent(UUID userId, String payload);
+
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "aggregateId", expression = "java(userId.toString())")
+    @Mapping(target = "aggregateType", constant = "USER")
+    @Mapping(target = "type", constant = "EMAIL_CONFIRMED")
+    @Mapping(target = "payload", source = "payload")
+    OutboxEvent toEmailConfirmedEvent(UUID userId, String payload);
 }

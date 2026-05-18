@@ -89,7 +89,7 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+      CLUSTER_ID: 'jDP1qDC3yUOV2ihCMlgWuA'
     volumes:
       - kafka_data:/var/lib/kafka/data
     networks:
@@ -101,9 +101,28 @@ services:
       retries: 5
 
 
+
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin_anime_user-service
+    restart: always
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com  # сменить при необходимости
+      PGADMIN_DEFAULT_PASSWORD: admin           # сменить при необходимости
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - backend
+    depends_on:
+      - postgres
+
+
   redis:
     image: redis:alpine
-    container_name: redis_anime_user-service
+    container_name: redis
     restart: always
     ports:
       - "6379:6379"
@@ -128,23 +147,5 @@ services:
       - redis
     networks:
       - backend
-
-
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: pgadmin_anime_user-service
-    restart: always
-    ports:
-      - "5050:80"
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@example.com  # сменить при необходимости
-      PGADMIN_DEFAULT_PASSWORD: admin           # сменить при необходимости
-    volumes:
-      - pgadmin_data:/var/lib/pgadmin
-    networks:
-      - backend
-    depends_on:
-      - postgres
-
 
 

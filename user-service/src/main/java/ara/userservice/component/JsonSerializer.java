@@ -15,7 +15,7 @@ public class JsonSerializer {
         try {
             return  objectMapper.writeValueAsString(object);
         }catch (JsonProcessingException e){
-            throw new RuntimeException("Ошибка сереализации JSONr", e);
+            throw new RuntimeException("Ошибка сереализации JSON", e);
         }
     }
 }
