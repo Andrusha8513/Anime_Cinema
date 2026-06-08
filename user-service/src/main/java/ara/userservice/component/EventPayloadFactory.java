@@ -28,7 +28,15 @@ public class EventPayloadFactory {
         return jsonSerializer.toJson(new ConfirmationRedisDto(userId, code));
     }
 
-    public String emailConfirmedPayload(UUID userId){
+    public String userActivationPayload(UUID userId){
         return jsonSerializer.toJson(Map.of("userId" , userId));
+    }
+
+    public String confirmEmailPayload(String code) {
+        return jsonSerializer.toJson(Map.of("code", code));
+    }
+
+    public String emailChangedPayload(UUID userId , String newEmail){
+        return jsonSerializer.toJson(Map.of("userId" , userId  , "newEmail"  , newEmail));
     }
 }

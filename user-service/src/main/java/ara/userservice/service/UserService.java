@@ -3,7 +3,6 @@ package ara.userservice.service;
 import ara.userservice.component.CodeGenerator;
 import ara.userservice.component.EventPayloadFactory;
 import ara.userservice.dto.RegistrationDto;
-import ara.userservice.entity.OutboxEvent;
 import ara.userservice.entity.User;
 import ara.userservice.exeption.UserAlreadyExistsException;
 import ara.userservice.mapper.OutboxEventMapper;
@@ -14,8 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.security.SecureRandom;
-import java.util.Optional;
+
 import java.util.UUID;
 
 @Service
@@ -42,26 +40,70 @@ public class UserService {
         String token = UUID.randomUUID().toString();
         String confirmationCode = codeGenerator.generateConfirmationCode();
 
+
+        String codePayload = eventPayloadFactory.codePayload(user.getId(), confirmationCode);
         String authPayload = eventPayloadFactory.authRegistrationPayload(user.getId(), user.getUsername(), user.getEmail(), token);
         String emailPayload = eventPayloadFactory.emailRegistrationPayload(user.getId(), user.getEmail(), confirmationCode);
 
 
         outboxRepository.save(outboxEventMapper.toAuthEvent(user.getId(), authPayload));
         outboxRepository.save(outboxEventMapper.toEmailEvent(user.getId(), emailPayload));
-        outboxRepository.save(outboxEventMapper.toCodeEvent(user.getId(), confirmationCode));
+        outboxRepository.save(outboxEventMapper.toCodeEvent(user.getId(), codePayload));
     }
 
 
     public void confirmEmail(String code) {
-        UUID userId = redisEmailService.getUserIdByConfirmationCode(code)
-                .orElseThrow(() -> new IllegalArgumentException("Код не найден или истёк"));
-
-        redisEmailService.deleteConfirmationCode(code);
-        redisEmailService.markEmailConfirmed(userId);
-
-        String activationPayload = eventPayloadFactory.emailConfirmedPayload(userId);
-        OutboxEvent event = outboxEventMapper.toEmailConfirmedEvent(userId, activationPayload);
-        outboxRepository.save(event);
+        String confirmPayload = eventPayloadFactory.confirmEmailPayload(code);
+        outboxRepository.save(outboxEventMapper.toConfirmEmailRequestEvent(code, confirmPayload));
     }
 
+    public void resendingEmail(UUID userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден"));
+
+        String confirmationCode = codeGenerator.generateConfirmationCode();
+        String emailPayload = eventPayloadFactory.emailRegistrationPayload(user.getId(), user.getEmail(), confirmationCode);
+
+
+        outboxRepository.save(outboxEventMapper.toCodeEvent(user.getId(), confirmationCode));
+        outboxRepository.save(outboxEventMapper.toEmailEvent(user.getId(), emailPayload));
+    }
+
+
+    public void updateName(UUID userId, String newUsername) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден"));
+
+        user.setUsername(newUsername);
+        userRepository.save(user);
+        outboxRepository.save(outboxEventMapper.toNewUsernameEvent(user.getId(), newUsername));
+    }
+
+    public void updateEmail(UUID userId, String newEmail) {
+        if (userRepository.findByEmail(newEmail).isPresent()) {
+            throw new IllegalArgumentException("Пользователь с такой почтой уже существует");
+        }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден"));
+
+        user.setPendingEmail(newEmail);
+        String confirmationCode = codeGenerator.generateConfirmationCode();
+        String emailPayload = eventPayloadFactory.emailRegistrationPayload(user.getId(), newEmail, confirmationCode);
+
+        userRepository.save(user);
+        outboxRepository.save(outboxEventMapper.toNewEmailEvent(user.getId(), emailPayload));
+        outboxRepository.save(outboxEventMapper.toCodeEvent(user.getId(), confirmationCode));
+    }
+
+    public void confirmNewEmail(UUID userId ,String code) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден"));
+        if(user.getPendingEmail() == null){
+            throw new IllegalStateException("Нет ожидающей смены email");
+        }
+
+        String payload = eventPayloadFactory.confirmEmailPayload(code);
+        outboxRepository.save(outboxEventMapper.toConfirmNewEmailRequestEvent(user.getId() , payload));
+    }
 }

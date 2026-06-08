@@ -68,11 +68,7 @@ public class RedisEmailService {
         redisTemplate.delete(RESET_PASSWORD_PREFIX + code);
     }
 
-    public void markEmailConfirmed(UUID userId) {
-        redisTemplate.opsForValue().set("email:confirmed:" + userId, "true", 1, TimeUnit.HOURS);
-    }
 
-    public boolean isEmailConfirmed(UUID userId) {
-        return Boolean.TRUE.equals(redisTemplate.hasKey("email:confirmed:" + userId));
-    }
+
+
 }
