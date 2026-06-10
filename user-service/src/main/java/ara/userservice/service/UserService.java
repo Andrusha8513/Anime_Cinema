@@ -5,6 +5,7 @@ import ara.userservice.component.EventPayloadFactory;
 import ara.userservice.dto.RegistrationDto;
 import ara.userservice.entity.User;
 import ara.userservice.exeption.UserAlreadyExistsException;
+import ara.userservice.exeption.UserNotFoundException;
 import ara.userservice.mapper.OutboxEventMapper;
 import ara.userservice.mapper.UserMapper;
 import ara.userservice.repository.OutboxRepository;
@@ -59,20 +60,22 @@ public class UserService {
 
     public void resendingEmail(UUID userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден"));
+                .orElseThrow(() -> new UserNotFoundException("Пользователь с таким id: " + userId + " не найден"));
 
         String confirmationCode = codeGenerator.generateConfirmationCode();
+
+        String codePayload = eventPayloadFactory.codePayload(user.getId() , confirmationCode);
         String emailPayload = eventPayloadFactory.emailRegistrationPayload(user.getId(), user.getEmail(), confirmationCode);
 
 
-        outboxRepository.save(outboxEventMapper.toCodeEvent(user.getId(), confirmationCode));
+        outboxRepository.save(outboxEventMapper.toCodeEvent(user.getId(), codePayload));
         outboxRepository.save(outboxEventMapper.toEmailEvent(user.getId(), emailPayload));
     }
 
 
-    public void updateName(UUID userId, String newUsername) {
+    public void updateUsername(UUID userId, String newUsername) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден"));
+                .orElseThrow(() -> new UserNotFoundException("Пользователь с таким id: " + userId + " не найден"));
 
         user.setUsername(newUsername);
         userRepository.save(user);
@@ -81,29 +84,31 @@ public class UserService {
 
     public void updateEmail(UUID userId, String newEmail) {
         if (userRepository.findByEmail(newEmail).isPresent()) {
-            throw new IllegalArgumentException("Пользователь с такой почтой уже существует");
+            throw new UserAlreadyExistsException("Пользователь с почтой " + newEmail + " уже существует");
         }
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден"));
+                .orElseThrow(() -> new UserNotFoundException("Пользователь с таким id: " + userId + " не найден"));
 
         user.setPendingEmail(newEmail);
         String confirmationCode = codeGenerator.generateConfirmationCode();
+
+        String codePayload = eventPayloadFactory.codePayload(user.getId(), confirmationCode);
         String emailPayload = eventPayloadFactory.emailRegistrationPayload(user.getId(), newEmail, confirmationCode);
 
         userRepository.save(user);
         outboxRepository.save(outboxEventMapper.toNewEmailEvent(user.getId(), emailPayload));
-        outboxRepository.save(outboxEventMapper.toCodeEvent(user.getId(), confirmationCode));
+        outboxRepository.save(outboxEventMapper.toCodeEvent(user.getId(), codePayload));
     }
 
-    public void confirmNewEmail(UUID userId ,String code) {
+    public void confirmNewEmail(UUID userId, String code) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден"));
-        if(user.getPendingEmail() == null){
+                .orElseThrow(() -> new UserNotFoundException("Пользователь с таким id: " + userId + " не найден"));
+        if (user.getPendingEmail() == null) {
             throw new IllegalStateException("Нет ожидающей смены email");
         }
 
         String payload = eventPayloadFactory.confirmEmailPayload(code);
-        outboxRepository.save(outboxEventMapper.toConfirmNewEmailRequestEvent(user.getId() , payload));
+        outboxRepository.save(outboxEventMapper.toConfirmNewEmailRequestEvent(user.getId(), payload));
     }
 }

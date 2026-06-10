@@ -14,7 +14,12 @@ import java.util.List;
 @Repository
 public interface OutboxRepository extends JpaRepository<OutboxEvent,Long> {
 
-    @Query("SELECT e FROM OutboxEvent e WHERE e.type = :type AND e.processed = false ORDER BY e.createdAt")
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    List<OutboxEvent> findTop50ByTypeAndProcessedFalse(@Param("type") String type, Pageable pageable);
+    @Query(value = """
+    SELECT * FROM outbox_events
+    WHERE type = :type AND processed = false
+    ORDER BY created_at
+    LIMIT 50
+    FOR UPDATE SKIP LOCKED
+    """, nativeQuery = true)
+    List<OutboxEvent> findPendingEvents(@Param("type") String type);
 }

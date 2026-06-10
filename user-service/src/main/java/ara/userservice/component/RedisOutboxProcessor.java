@@ -38,7 +38,6 @@ public class RedisOutboxProcessor {
     private static final String CONFIRMATION_CODE_SAVE = "CONFIRMATION_CODE_SAVE";
     private static final String CONFIRM_EMAIL_REQUEST = "CONFIRM_EMAIL_REQUEST";
     private static final String CONFIRM_NEW_EMAIL_REQUEST = "CONFIRM_NEW_EMAIL_REQUEST";
-    private static final int BATCH_SIZE = 50;
     private static final int MAX_RETRIES = 3;
 
     @Scheduled(fixedDelayString = "${app.outbox.redis.processor-delay-ms:100}")
@@ -50,8 +49,7 @@ public class RedisOutboxProcessor {
     }
 
     private void processEventsOfType(String eventType, Consumer<OutboxEvent> handler) {
-        Pageable pageable = PageRequest.of(0, BATCH_SIZE);
-        List<OutboxEvent> events = outboxRepository.findTop50ByTypeAndProcessedFalse(eventType, pageable);
+        List<OutboxEvent> events = outboxRepository.findPendingEvents(eventType);
 
         for (OutboxEvent event : events) {
             try {
