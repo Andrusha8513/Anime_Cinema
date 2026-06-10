@@ -1,0 +1,24 @@
+### 1. Регистрация нового пользователя
+POST http://localhost:9999/api/user/registration
+Content-Type: application/json
+
+{
+  "username": "ara",
+  "email": "4057163@mail.ru",
+  "password": "secret123"
+}
+
+### 2. Подтверждение email (код приходит в письме / Redis)
+POST http://localhost:9999/api/user/confirm-email?code=123456
+
+### 3. Повторная отправка кода подтверждения
+POST http://localhost:9999/api/user/<userId>/resend-email
+
+### 4. Смена имени пользователя
+POST http://localhost:9999/api/user/<userId>/update-username?newName=new_john
+
+### 5. Смена email (будет отправлен код на новый адрес)
+POST http://localhost:9999/api/user/<userId>/update-email?newEmail=new_email@example.com
+
+### 6. Подтверждение нового email после смены
+POST http://localhost:9999/api/user/<userId>/confirm-new-email?code=654321

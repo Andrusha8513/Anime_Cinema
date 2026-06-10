@@ -1,8 +1,11 @@
 package ara.userservice.entity;
 
+import io.hypersistence.utils.hibernate.type.json.JsonBinaryType;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.Type;
+
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -29,6 +32,7 @@ public class OutboxEvent {
     private String type;
 
     @Column(columnDefinition = "jsonb", nullable = false)
+    @Type(JsonBinaryType.class)
     private String payload;
 
     @CreationTimestamp

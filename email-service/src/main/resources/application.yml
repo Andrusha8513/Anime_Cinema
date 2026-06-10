@@ -1,13 +1,34 @@
 spring:
   application:
     name: email-service
+
+  datasource:
+    url: jdbc:postgresql://localhost:5434/postgres
+    username: postgres
+    password: GFGF18101961
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+
   kafka:
     bootstrap-servers: localhost:9092
     consumer:
       group-id: email-service-group
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer   # принимаю как String
       auto-offset-reset: earliest
+      # enable-auto-commit: true (по умолчанию) - автоматический коммит, не нужен ручной
+      properties:
+        spring.json.trusted.packages: "*"
+    listener:
+      # ack-mode: BATCH (по умолчанию) – не MANUAL
+      concurrency: 1
+    producer:                 # продюсер не нужен, если сами не шлём, но оставлю для DLT
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      retries: 3
+
   mail:
     host: smtp.gmail.com
     port: 587
@@ -19,8 +40,7 @@ spring:
           auth: true
           starttls:
             enable: true
+
 server:
   port: 8082
-  threads:
-    virtual:
-      enabled: true
+
