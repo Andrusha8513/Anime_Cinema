@@ -4,7 +4,7 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5433/postgres
     username: postgres
-    password: GFGF18101961
+    password: ${DB_PASSWORD:GFGF18101961}
   jpa:
     hibernate:
       ddl-auto: create-drop
@@ -12,9 +12,23 @@ spring:
     redis:
       host: localhost
       port: 6379
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          public-key-location: classpath:keys/auth_public_key.pem
+
 server:
   port: 9999
+
 app:
   confirmation:
     key-prefix: "email:confirm:"
     ttl-minutes: 15
+  jwt:
+    registration:
+      private-key-location: ${USER_JWT_PRIVATE_KEY:classpath:keys/user_private_key_pkcs8.pem}
+      key-id: ${USER_JWT_KID:user-key-1}
+      issuer: user-service
+      audience: auth-service
+      ttl-seconds: 180

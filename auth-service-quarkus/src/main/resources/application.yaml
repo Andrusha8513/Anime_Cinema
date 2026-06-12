@@ -1,0 +1,136 @@
+quarkus:
+  application:
+    name: auth-service-quarkus
+  http:
+    port: 8083
+    cors:
+      enabled: true
+      origins:
+        - "http://localhost:3000"
+      methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+      headers:
+        - Authorization
+        - Content-Type
+      exposed-headers:
+        - Authorization
+  datasource:
+    db-kind: postgresql
+    username: postgres
+    password: ${DB_PASSWORD:GFGF18101961}
+    jdbc:
+      url: jdbc:postgresql://localhost:5435/postgres
+      initial-size: 5
+      min-size: 5
+      max-size: 20
+      acquisition-timeout: 10
+  hibernate-orm:
+    database:
+      generation: drop-and-create
+    log:
+      sql: false
+    jdbc:
+      time_zone: UTC
+  flyway:
+    migrate-at-start: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+
+  security:
+    roles:
+      allowed: USER,ADMIN
+  log:
+    level: INFO
+    category:
+      "ara.authservice":
+        level: DEBUG
+      "io.smallrye.reactive.messaging":
+        level: INFO
+      "org.hibernate":
+        level: WARN
+    console:
+      enable: true
+      format: "%d{HH:mm:ss} %-5p [%c{2.}] (%t) %s%e%n"
+    file:
+      enable: true
+      path: logs/auth-service-quarkus.log
+      format: "%d{yyyy-MM-dd HH:mm:ss,SSS} %-5p [%c{2.}] (%t) %s%e%n"
+      rotation:
+        max-file-size: 10M
+        max-backup-index: 5
+  smallrye-health:
+    root-path: /q/health
+  micrometer:
+    export:
+      prometheus:
+        enabled: true
+        path: /q/metrics
+  scheduler:
+    enabled: true
+  redis:
+    hosts: redis://localhost:6378
+
+kafka:
+  bootstrap:
+    servers: localhost:9092
+
+mp:
+  messaging:
+    incoming:
+      auth-service-quarkus:
+        connector: smallrye-kafka
+        topic: USER
+        group:
+          id: auth-service-quarkus-group
+        auto:
+          offset:
+            reset: earliest
+        value:
+          deserializer: org.apache.kafka.common.serialization.StringDeserializer
+        key:
+          deserializer: org.apache.kafka.common.serialization.StringDeserializer
+        failure:
+          strategy: dead-letter-queue
+        enable:
+          auto:
+            commit: false
+    outgoing:
+      auth-service-quarkus-dlt:
+        connector: smallrye-kafka
+        topic: USER-dlt
+        value:
+          serializer: org.apache.kafka.common.serialization.StringSerializer
+  jwt:
+    verify:
+      publickey:
+        location: classpath:keys/auth_public_key.pem
+      issuer: auth-service-quarkus
+      audience: auth-service
+      clock-skew: 30
+    sign:
+      key:
+        location: classpath:keys/auth_private_key_pkcs8.pem
+      algorithm: RS256
+    new-token:
+      issuer: auth-service-quarkus
+      lifespan: 900
+
+app:
+  registration:
+    public-key-location: ${USER_JWT_PUBLIC_KEY:keys/user_public_key.pem}
+    issuer: user-service
+    audience: auth-service
+    jti-ttl-minutes: 5
+  security:
+    registration-token:
+      ttl-minutes: 15
+    refresh-token:
+      ttl-days: 30
+      renewal-threshold-days: 7
+    max-active-sessions-per-user: 5
+    password:
+      min-length: 8
+#      max-length: 100

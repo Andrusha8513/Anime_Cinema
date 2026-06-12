@@ -1,24 +1,157 @@
-### 1. Регистрация нового пользователя
-POST http://localhost:9999/api/user/registration
+### ============================================================
+### Переменные окружения
+### user-service (Spring)  :9999   | auth-service (Quarkus) :8083
+### ============================================================
+@userHost = http://localhost:9999
+@authHost = http://localhost:8083
+
+@email = 131238811@mail.ru
+@username = ara123321188
+@password = 12345678
+
+### ============================================================
+### ШАГ 1 — Регистрация (user-service). Публичный.
+### В ответе: correlation-id (userId) в поле token.
+### ============================================================
+# @name registration
+POST {{userHost}}/api/user/registration
 Content-Type: application/json
 
 {
-  "username": "ara",
-  "email": "4057163@mail.ru",
-  "password": "secret123"
+  "username": "{{username}}",
+  "email": "{{email}}",
+  "password": "{{password}}"
 }
 
-### 2. Подтверждение email (код приходит в письме / Redis)
-POST http://localhost:9999/api/user/confirm-email?code=123456
+> {%
+    client.global.set("userId", response.body.userId);
+%}
 
-### 3. Повторная отправка кода подтверждения
-POST http://localhost:9999/api/user/<userId>/resend-email
+### ============================================================
+### ШАГ 2 — Подтверждение email (user-service). Публичный.
+### code приходит на почту. Ответ содержит регистрационный JWT для auth-service.
+### ВСТАВЬ реальный код из письма вместо 123456.
+### ============================================================
+# @name confirmEmail
+POST {{userHost}}/api/user/confirm-email
+Content-Type: application/json
 
-### 4. Смена имени пользователя
-POST http://localhost:9999/api/user/<userId>/update-username?newName=new_john
+{
+  "code": "282530"
+}
 
-### 5. Смена email (будет отправлен код на новый адрес)
-POST http://localhost:9999/api/user/<userId>/update-email?newEmail=new_email@example.com
+> {%
+    // регистрационный JWT из ответа user-service -> сохраняем для auth-service
+    client.global.set("registrationToken", response.body.token);
+%}
 
-### 6. Подтверждение нового email после смены
-POST http://localhost:9999/api/user/<userId>/confirm-new-email?code=654321
+### ============================================================
+### ШАГ 3 — Завершение регистрации (auth-service). Публичный.
+### Несёт регистрационный токен из шага 2 + пароль. Возвращает access + refresh.
+### ============================================================
+# @name completeRegistration
+POST {{authHost}}/auth/complete-registration
+Content-Type: application/json
+
+{
+  "token": "{{registrationToken}}",
+  "password": "{{password}}"
+}
+
+> {%
+    client.global.set("accessToken", response.body.accessToken);
+    client.global.set("refreshToken", response.body.refreshToken);
+%}
+
+### ============================================================
+### ШАГ 4 — Логин (auth-service). Проверяем, что пароль сохранён.
+### ============================================================
+# @name login
+POST {{authHost}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+> {%
+    client.global.set("accessToken", response.body.accessToken);
+    client.global.set("refreshToken", response.body.refreshToken);
+%}
+
+### ============================================================
+### ШАГ 5 — Обновление access-токена по refresh (auth-service).
+### ============================================================
+POST {{authHost}}/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}
+
+### ============================================================
+### ШАГ 6 — Активные сессии (auth-service). Защищённый — нужен access-токен.
+### ============================================================
+GET {{authHost}}/auth/sessions
+Authorization: Bearer {{accessToken}}
+
+### ============================================================
+### ШАГ 7 — Смена username (user-service). Защищённый.
+### userId берётся из токена, не из URL.
+### ============================================================
+POST {{userHost}}/api/user/update-username
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "newUsername": "652981"
+}
+
+### ============================================================
+### ШАГ 8 — Выход (auth-service). Защищённый.
+### ============================================================
+POST {{authHost}}/auth/logout
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}
+
+### ============================================================
+### НЕГАТИВНЫЕ ПРОВЕРКИ
+### ============================================================
+
+### Повтор шага 3 тем же токеном -> ожидаем отказ (jti уже сожжён / юзер enabled)
+POST {{authHost}}/auth/complete-registration
+Content-Type: application/json
+
+{
+  "token": "{{registrationToken}}",
+  "password": "{{password}}"
+}
+
+### Слабый пароль -> ожидаем 400 (валидация @Size)
+POST {{authHost}}/auth/complete-registration
+Content-Type: application/json
+
+{
+  "token": "{{registrationToken}}",
+  "password": "123"
+}
+
+### Защищённый эндпоинт без токена -> ожидаем 401
+GET {{authHost}}/auth/sessions
+
+### Неверный пароль на логине -> ожидаем отказ
+POST {{authHost}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "WrongPassword999"
+}
+
+###
+GET http://localhost:8083/auth/sessions

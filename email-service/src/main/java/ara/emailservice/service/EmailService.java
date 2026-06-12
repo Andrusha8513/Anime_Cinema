@@ -10,7 +10,6 @@ import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -18,7 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 public class EmailService {
     private final JavaMailSender mailSender;
-    private final ProcessedEventRepository processedEventRepository;
+    private final ProcessedEventService processedEventService;
     @Value("${spring.mail.username}")
     private String from;
 
@@ -32,20 +31,14 @@ public class EmailService {
             message.setText("Ваш код подтверждения: " + payload.confirmationCode());
             mailSender.send(message);
 
-            markEventAsProcessed(eventId);
+            processedEventService.markAsProcessed(eventId);
+
             log.info("Письмо отправлено для {}", payload.email());
         }catch (Exception e){
             log.error("Ошибка отправки письма для eventId={}", eventId, e);
+            throw  new RuntimeException("Не удалось отправить электронное письмо. Ошибка: "  , e);
         }
     }
 
-    @Transactional
-    public boolean isEventProcessed(String eventId){
-        return processedEventRepository.existsById(eventId);
-    }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void markEventAsProcessed(String eventId){
-        processedEventRepository.save(new ProcessedEvent(eventId));
-    }
 }

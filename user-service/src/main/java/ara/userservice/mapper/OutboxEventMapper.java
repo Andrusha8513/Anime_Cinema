@@ -4,8 +4,12 @@ import ara.userservice.entity.OutboxEvent;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.Named;
+import org.mapstruct.ReportingPolicy;
 
 import java.util.UUID;
+
+//потом добавить
+//unmappedTargetPolicy = ReportingPolicy.ERROR
 
 @Mapper(componentModel = "spring")
 public interface OutboxEventMapper {
@@ -81,4 +85,12 @@ public interface OutboxEventMapper {
     @Mapping(target = "type", constant = "EMAIL_CHANGED")
     @Mapping(target = "payload", source = "payload")
     OutboxEvent toEmailChangedEvent(UUID userId, String payload);
+
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "aggregateId", source = "userId", qualifiedByName = "uuidToString")
+    @Mapping(target = "aggregateType", constant = "USER")
+    @Mapping(target = "type", constant = "SAVE_USER_TO_REDIS")
+    @Mapping(target = "payload", source = "payload")
+    @Mapping(target = "processed", constant = "false")
+    OutboxEvent toSaveUserToRedisEvent(UUID userId, String payload);
 }

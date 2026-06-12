@@ -3,6 +3,7 @@ package ara.userservice.component;
 import ara.userservice.dto.AuthPayload;
 import ara.userservice.dto.ConfirmationRedisDto;
 import ara.userservice.dto.EmailPayload;
+import ara.userservice.dto.RedisUserDto;
 import ara.userservice.eventType.EmailType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -38,5 +39,9 @@ public class EventPayloadFactory {
 
     public String emailChangedPayload(UUID userId , String newEmail){
         return jsonSerializer.toJson(Map.of("userId" , userId  , "newEmail"  , newEmail));
+    }
+
+    public String  redisUserPayload(RedisUserDto dto){
+        return jsonSerializer.toJson(dto);
     }
 }

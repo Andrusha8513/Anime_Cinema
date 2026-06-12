@@ -2,6 +2,7 @@ package ara.emailservice.kafka;
 
 import ara.emailservice.dto.EmailPayload;
 import ara.emailservice.service.EmailService;
+import ara.emailservice.service.ProcessedEventService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -17,6 +18,7 @@ public class EmailKafkaConsumer {
 
     private final ObjectMapper objectMapper;
     private final EmailService emailService;
+    private final ProcessedEventService processedEventService;
 
     @KafkaListener(
             topics = "USER",
@@ -31,17 +33,17 @@ public class EmailKafkaConsumer {
             @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
             @Header(KafkaHeaders.OFFSET) long offset) {
 
-        log.info("Получено сообщение: topic={}, partition={}, offset={}, eventId={}, eventType={}",
-                topic, partition, offset, eventId, eventType);
-
-
         if (!"EMAIL_REGISTRATION".equals(eventType)) {
             log.debug("Пропускаем событие с типом: {}", eventType);
             return;
         }
 
+        log.info("Получено сообщение: topic={}, partition={}, offset={}, eventId={}, eventType={}",
+                topic, partition, offset, eventId, eventType);
 
-        if (emailService.isEventProcessed(eventId)) {
+
+
+        if (processedEventService.isEventProcessed(eventId)) {
             log.info("Событие {} уже обработано, пропускаем", eventId);
             return;
         }
@@ -50,7 +52,7 @@ public class EmailKafkaConsumer {
             EmailPayload emailPayload = objectMapper.readValue(payload, EmailPayload.class);
 
             if (emailPayload.email() == null || emailPayload.email().isBlank()) {
-                throw new IllegalArgumentException("Email is required in payload");
+                throw new IllegalArgumentException("В payload обязательно должен быть указан адрес электронной почты.");
             }
 
             emailService.sendConfirmationEmailAsync(emailPayload, eventId);
@@ -59,7 +61,7 @@ public class EmailKafkaConsumer {
         } catch (IllegalArgumentException e) {
 
             log.error("Невалидный payload для события {}. Сообщение будет пропущено.", eventId, e);
-            emailService.markEventAsProcessed(eventId);
+            processedEventService.markAsProcessed(eventId);
 
         } catch (Exception e) {
 
