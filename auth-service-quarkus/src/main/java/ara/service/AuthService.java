@@ -2,8 +2,10 @@ package ara.service;
 
 import ara.dto.LogoutRequest;
 import ara.dto.RegistrationClaims;
+import ara.dto.UpdateRole;
 import ara.entity.Auth;
 import ara.entity.RefreshToken;
+import ara.exeption.UserNotFoundException;
 import ara.jwt.*;
 import ara.redis.JtiStore;
 import ara.repository.AuthRepository;
@@ -13,13 +15,12 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.NotFoundException;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
+import java.nio.file.attribute.UserPrincipalNotFoundException;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 @Slf4j
 @Transactional
@@ -28,6 +29,8 @@ public class AuthService {
 
     //    private final RegistrationTokenRepository registrationTokenRepository;
     private static final Duration REGISTRATION_JTI_TTL = Duration.ofMinutes(5);
+    @ConfigProperty(name = "app.security.max-active-sessions-per-user")
+    int maxActiveSessions;
 
     private final AuthRepository authRepository;
     private final TokenGenerator tokenGenerator;
@@ -50,8 +53,7 @@ public class AuthService {
         RegistrationClaims claims = registrationTokenVerifier.verify(registrationToken);
         UUID userId = claims.userId();
 
-        //  лог успешной проверки токена и его метаданных
-        log.info("complete-registration: verify OK, userId={}, jti={}", claims.userId(), claims.jti());
+
 
         Optional<Auth> existing = authRepository.findById(userId);
         if (existing.isPresent() && existing.get().isEnabled()) {
@@ -62,8 +64,8 @@ public class AuthService {
             throw new SecurityException("Токен регистрации уже был использован");
         }
 
-        //  лог успешного сжигания JTI в Redis и перехода к созданию аккаунта
-        log.info("complete-registration: jti отмечен, создаю Auth для {}", userId);
+
+
 
         Auth auth = existing.orElseGet(Auth::new);
         auth.setUserId(userId);
@@ -92,7 +94,7 @@ public class AuthService {
         if (!auth.isEnabled()) {
             throw new SecurityException("Аккаунт не активирован. Установите пароль.");
         }
-        if (!auth.isAccountNonLocked()) {
+        if (auth.isAccountLocked()) {
             throw new SecurityException("Аккаунт заблокирован");
         }
 
@@ -106,8 +108,6 @@ public class AuthService {
 
     }
 
-    ;
-
 
     public JwtAuthenticationDto refresh(String refreshTokenValue) {
         RefreshToken refreshToken = refreshTokenRepository.findByToken(refreshTokenValue)
@@ -120,7 +120,7 @@ public class AuthService {
         Auth auth = authRepository.findById(refreshToken.getUserId())
                 .orElseThrow(() -> new NotFoundException("Пользователь с таким id: " + refreshToken.getUserId() + " не найден"));
 
-        if (!auth.isEnabled() || auth.isAccountNonLocked()) {
+        if (!auth.isEnabled() || !auth.isAccountLocked()) {
             throw new SecurityException("Пользователь  заблокирован");
         }
 
@@ -164,6 +164,17 @@ public class AuthService {
 
 
     private JwtAuthenticationDto issueSession(Auth auth, String deviceInfo, String ipAddress) {
+
+       List<RefreshToken> active = refreshTokenRepository.findByUserIdAndRevokedFalse(auth.getUserId());
+       if (active.size() >= maxActiveSessions){
+           active.stream()
+                   .min(Comparator.comparing(RefreshToken::getCreatedAt))
+                   .ifPresent(oldest ->{
+                       oldest.revoke();
+                       refreshTokenRepository.persist(oldest);
+                   });
+       }
+
         TokenData tokenData = new TokenData(auth.getUserId(), auth.getRoles());
         String accessToken = tokenGenerator.generateAccessToken(tokenData);
         String refreshTokenValue = tokenGenerator.generateRefreshToken();
@@ -176,6 +187,20 @@ public class AuthService {
                 .build();
         refreshTokenRepository.persist(refreshToken);
         return new JwtAuthenticationDto(accessToken, refreshTokenValue);
+    }
+
+    public void updateRole(UUID userId , UpdateRole newRole)  {
+        Auth auth = authRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException("Пользователь не таким id: " + userId + " не найден"));
+
+
+        auth.setRoles(newRole.roles());
+        authRepository.persist(auth);
+
+        List<RefreshToken> session = refreshTokenRepository.findByUserIdAndRevokedFalse(userId);
+        session.forEach(RefreshToken::revoke);
+       refreshTokenRepository.persist(session);
+        log.info("Роль пользователя {} изменена, активные сессии отозваны", userId);
     }
 
 

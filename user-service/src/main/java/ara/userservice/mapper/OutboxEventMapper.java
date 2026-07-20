@@ -93,4 +93,12 @@ public interface OutboxEventMapper {
     @Mapping(target = "payload", source = "payload")
     @Mapping(target = "processed", constant = "false")
     OutboxEvent toSaveUserToRedisEvent(UUID userId, String payload);
+
+    @Mapping(target = "id" , ignore = true)
+    @Mapping(target = "aggregateId" , source = "userId" , qualifiedByName = "uuidToString")
+    @Mapping(target = "aggregateType" , constant = "USER")
+    @Mapping(target = "type" , constant = "USER_CREATED")
+    @Mapping(target = "payload", source = "payload")
+    @Mapping(target = "processed", constant = "false")
+    OutboxEvent toUserCreatedEvent(UUID userId, String payload);
 }

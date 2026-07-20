@@ -44,4 +44,12 @@ public class EventPayloadFactory {
     public String  redisUserPayload(RedisUserDto dto){
         return jsonSerializer.toJson(dto);
     }
+
+    public String userCreatedPayload(UUID userId, String username) {
+        return jsonSerializer.toJson(Map.of("userId", userId, "username", username));
+    }
+
+    public String newUsernamePayload(UUID userId, String newUsername) {
+        return jsonSerializer.toJson(Map.of("userId", userId, "username", newUsername));
+    }
 }

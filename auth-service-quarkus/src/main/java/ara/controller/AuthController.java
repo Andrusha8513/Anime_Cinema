@@ -1,10 +1,7 @@
 package ara.controller;
 
 
-import ara.dto.CompleteRegistrationRequest;
-import ara.dto.LoginRequestEmail;
-import ara.dto.LogoutRequest;
-import ara.dto.RefreshRequest;
+import ara.dto.*;
 import ara.entity.RefreshToken;
 import ara.jwt.JwtAuthenticationDto;
 import ara.service.AuthService;
@@ -12,6 +9,7 @@ import ara.utiliti.ClientInfoExtractor;
 import ara.utiliti.DeviceInfoParser;
 import io.quarkus.security.Authenticated;
 import io.vertx.core.http.HttpServerRequest;
+import jakarta.annotation.security.RolesAllowed;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Context;
@@ -19,7 +17,6 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.jwt.JsonWebToken;
-
 
 import java.util.List;
 import java.util.UUID;
@@ -108,6 +105,16 @@ public class AuthController {
         JwtAuthenticationDto tokens = authService.completeRegistration(request.token() ,request.password() , device , ip);
 
         return Response.ok(tokens).build();
+    }
+
+    @PUT
+    @Path("/{userId}/update-role")
+    @RolesAllowed("ADMIN")
+    @Consumes(MediaType.APPLICATION_JSON)
+    public Response updateRole(@PathParam("userId") UUID userId ,
+                              @Valid UpdateRole newRole)  {
+        authService.updateRole(userId , newRole);
+        return Response.status(Response.Status.OK).build();
     }
 
 }

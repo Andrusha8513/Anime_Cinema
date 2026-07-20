@@ -1,0 +1,56 @@
+@chatHost = http://localhost:8888
+@conversationId = 11111111-1111-1111-1111-111111111111
+@senderId = 22222222-2222-2222-2222-222222222222
+
+### Отправить сообщение
+POST {{chatHost}}/chat/messages?senderId={{senderId}}
+Content-Type: application/json
+
+{
+  "conversationId": "{{conversationId}}",
+  "content": "Первое сообщение в ScyllaDB!"
+}
+
+### Отправить ещё одно
+POST {{chatHost}}/chat/messages?senderId={{senderId}}
+Content-Type: application/json
+
+{
+  "conversationId": "{{conversationId}}",
+  "content": "Второе сообщение"
+}
+
+### Прочитать последние
+GET {{chatHost}}/chat/messages/{{conversationId}}?limit=50
+
+### Найти человека и создать диалог
+POST {{chatHost}}/chat/conversations/direct
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{ "username": "ara123321188" }
+
+### Повторно — должен вернуть ТОТ ЖЕ conversationId (детерминированный id)
+POST {{chatHost}}/chat/conversations/direct
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{ "username": "ara123321188" }
+
+### Создать группу
+POST {{chatHost}}/chat/conversations/group
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{ "title": "Тестовая группа", "type": "GROUP", "members": ["ara123321188"] }
+
+### Мои чаты
+GET {{chatHost}}/chat/conversations
+Authorization: Bearer {{accessToken}}
+
+### Несуществующий username -> 404
+POST {{chatHost}}/chat/conversations/direct
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{ "username": "nobody999" }

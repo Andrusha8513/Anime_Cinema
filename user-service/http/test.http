@@ -3,10 +3,11 @@
 ### user-service (Spring)  :9999   | auth-service (Quarkus) :8083
 ### ============================================================
 @userHost = http://localhost:9999
-@authHost = http://localhost:8083
+@authHost = http://localhost:5555
+@chatHost = http://localhost:8888
 
-@email = 131238811@mail.ru
-@username = ara123321188
+@email = 405716312@mail.ru
+@username = ara22
 @password = 12345678
 
 ### ============================================================
@@ -37,7 +38,7 @@ POST {{userHost}}/api/user/confirm-email
 Content-Type: application/json
 
 {
-  "code": "282530"
+  "code": "111671"
 }
 
 > {%
@@ -155,3 +156,236 @@ Content-Type: application/json
 
 ###
 GET http://localhost:8083/auth/sessions
+
+### ============================================================
+### ШАГ 8.1 — Проверка: после logout этот refresh больше не работает.
+### Ожидаем отказ (токен отозван).
+### ============================================================
+POST {{authHost}}/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}
+
+### ============================================================
+### ШАГ 9 — Выход со ВСЕХ устройств (auth-service). Защищённый.
+### Нужен ЖИВОЙ accessToken — сделай login заново перед этим шагом,
+### т.к. на шаге 8 сессия была закрыта.
+### ============================================================
+# @name loginBeforeAllLogout
+POST {{authHost}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+> {%
+    client.global.set("accessToken", response.body.accessToken);
+    client.global.set("refreshToken", response.body.refreshToken);
+%}
+
+### Собственно выход со всех устройств
+POST {{authHost}}/auth/all-logout
+Authorization: Bearer {{accessToken}}
+
+### ============================================================
+### ШАГ 9.1 — Проверка: после all-logout сессии закрыты.
+### Ожидаем пустой список или отказ на refresh.
+### ============================================================
+POST {{authHost}}/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}
+
+### ============================================================
+### НЕГАТИВНЫЕ ПРОВЕРКИ
+### ============================================================
+
+### Повтор шага 3 тем же токеном -> ожидаем отказ (jti уже сожжён / юзер enabled)
+POST {{authHost}}/auth/complete-registration
+Content-Type: application/json
+
+{
+  "token": "{{registrationToken}}",
+  "password": "{{password}}"
+}
+
+### Слабый пароль -> ожидаем 400 (валидация @Size)
+POST {{authHost}}/auth/complete-registration
+Content-Type: application/json
+
+{
+  "token": "{{registrationToken}}",
+  "password": "123"
+}
+
+### Защищённый эндпоинт без токена -> ожидаем 401
+GET {{authHost}}/auth/sessions
+
+### all-logout без токена -> ожидаем 401
+POST {{authHost}}/auth/all-logout
+
+### Неверный пароль на логине -> ожидаем отказ
+POST {{authHost}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "WrongPassword999"
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+### ========== CHAT-SERVICE (Quarkus) :8888 ==================
+# @name loginForChat
+POST {{authHost}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+> {%
+    client.global.set("accessToken", response.body.accessToken);
+    // userId пригодится как senderId и для проверок
+    // (в токене он в sub; тут просто держим под рукой из шага регистрации)
+%}
+
+### ------------------------------------------------------------
+### CHAT ШАГ 1 — Отправить сообщение (ВРЕМЕННЫЙ REST, senderId в query).
+### Это тест ХРАНЕНИЯ, который уже работает. WebSocket будет отдельно.
+### ------------------------------------------------------------
+@conversationId = 11111111-1111-1111-1111-111111111111
+@senderId = 22222222-2222-2222-2222-222222222222
+
+POST {{chatHost}}/chat/messages?senderId={{senderId}}
+Content-Type: application/json
+
+{
+  "conversationId": "{{conversationId}}",
+  "content": "Тестовое сообщение через REST"
+}
+
+### ------------------------------------------------------------
+### CHAT ШАГ 2 — Прочитать последние сообщения чата (REST).
+### Новые сверху (CLUSTERING ORDER BY message_id DESC).
+### ------------------------------------------------------------
+GET {{chatHost}}/chat/messages/{{conversationId}}?limit=50
+
+### ------------------------------------------------------------
+### CHAT ШАГ 3 — (ПОСЛЕ добавления JWT в REST) отправка с токеном.
+### Пока эндпоинт на query-параметре — этот запрос заработает,
+### когда переведём senderId на userId из токена.
+### ------------------------------------------------------------
+POST {{chatHost}}/chat/messages
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "conversationId": "{{conversationId}}",
+  "content": "Сообщение с JWT-аутентификацией"
+}
+
+###
+
+
+### ------------------------------------------------------------
+### CHAT — health check (проверить, что сервис жив)
+### ------------------------------------------------------------
+GET {{chatHost}}/q/health
+
+###
+### ============================================================
+### CHAT — проверка ChatTokenVerifier (временный тест)
+### Нужен свежий accessToken (прогони login на auth-service выше).
+### ============================================================
+GET {{chatHost}}/chat/verify-test
+Authorization: Bearer {{accessToken}}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+### Найти человека и создать диалог
+POST {{chatHost}}/chat/conversations/direct
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{ "username": "ara" }
+
+### Повторно — должен вернуть ТОТ ЖЕ conversationId (детерминированный id)
+POST {{chatHost}}/chat/conversations/direct
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{ "username": "ara123321188" }
+
+### Создать группу
+POST {{chatHost}}/chat/conversations/group
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{ "title": "Ара", "type": "GROUP", "members": ["ara1"] }
+
+### Мои чаты
+GET {{chatHost}}/chat/conversations
+Authorization: Bearer {{accessToken}}
+
+### Несуществующий username -> 404
+POST {{chatHost}}/chat/conversations/direct
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{ "username": "nobody999" }
+

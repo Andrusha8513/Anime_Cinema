@@ -19,6 +19,7 @@ spring:
           public-key-location: classpath:keys/auth_public_key.pem
 
 server:
+  address: 0.0.0.0
   port: 9999
 
 app:

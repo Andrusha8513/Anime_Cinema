@@ -64,7 +64,7 @@ public class UserService {
         outboxRepository.save(outboxEventMapper.toCodeEvent(userId, codePayload));
         outboxRepository.save(outboxEventMapper.toEmailEvent(userId, emailPayload));
 
-        // token тут — это userId (correlation id для фронта), НЕ JWT. JWT отдаём на подтверждении.
+
         return new RegistrationResponse(
                 "Регистрация начата. Подтвердите email кодом из письма.", userId.toString());
     }
@@ -96,6 +96,8 @@ public class UserService {
             throw new UserAlreadyExistsException("Пользователь с таким username или email уже существует");
         }
 
+        String userCreatedPayload = eventPayloadFactory.userCreatedPayload(userId , user.getUsername());
+        outboxRepository.save(outboxEventMapper.toUserCreatedEvent(userId , userCreatedPayload));
 
         cleanupRedis(code, userId);
 

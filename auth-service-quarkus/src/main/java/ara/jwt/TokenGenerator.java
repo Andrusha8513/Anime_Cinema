@@ -39,6 +39,7 @@ public class TokenGenerator {
     public String generateAccessToken(TokenData tokenData) {
         Instant now = Instant.now();
         return Jwts.builder()
+                .id(UUID.randomUUID().toString())
                 .issuer(issuer)
                 .subject(tokenData.userId().toString())
                 .claim("upn", tokenData.userId().toString())

@@ -2,21 +2,14 @@ quarkus:
   application:
     name: auth-service-quarkus
   http:
-    port: 8083
+    port: 5555
+    host: 0.0.0.0                # <-- слушать все интерфейсы, иначе телефон не достучится
     cors:
       enabled: true
-      origins:
-        - "http://localhost:3000"
-      methods:
-        - GET
-        - POST
-        - PUT
-        - DELETE
-      headers:
-        - Authorization
-        - Content-Type
-      exposed-headers:
-        - Authorization
+      origins: /.*/              # <-- dev: любой origin. НА ПРОДЕ — конкретный список!
+      methods: GET,POST,PUT,DELETE,OPTIONS
+      headers: Authorization,Content-Type
+      exposed-headers: Authorization
   datasource:
     db-kind: postgresql
     username: postgres
@@ -38,7 +31,6 @@ quarkus:
     migrate-at-start: true
     baseline-on-migrate: true
     locations: classpath:db/migration
-
   security:
     roles:
       allowed: USER,ADMIN
@@ -133,4 +125,3 @@ app:
     max-active-sessions-per-user: 5
     password:
       min-length: 8
-#      max-length: 100

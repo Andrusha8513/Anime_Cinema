@@ -40,11 +40,14 @@ public class Auth {
     private String password;
 
     private boolean enabled;
-    private boolean accountNonLocked = true;
+    @Column(name = "account_locked")
+    private boolean accountLocked = false;
 
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
     private Set<Role> roles;
+
+
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
