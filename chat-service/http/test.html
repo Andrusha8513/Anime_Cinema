@@ -7,19 +7,28 @@
     <style>
         body { font-family: system-ui; margin: 0; padding: 12px; background: #f5f5f5; }
         .screen { display: none; } .screen.active { display: block; }
-        input, button { font-size: 16px; padding: 10px; margin: 4px 0; width: 100%; box-sizing: border-box; }
+        input, button, select { font-size: 16px; padding: 10px; margin: 4px 0; width: 100%; box-sizing: border-box; }
         button { background: #0088cc; color: #fff; border: none; border-radius: 6px; cursor: pointer; }
         button.sec { background: #888; }
-        #msgs { height: 45vh; overflow-y: auto; background: #fff; padding: 8px; border-radius: 6px; }
+        #msgs { height: 45vh; overflow-y: auto; background: #fff; padding: 8px; border-radius: 6px; display: flex; flex-direction: column; }
         .m { padding: 6px 10px; margin: 4px 0; border-radius: 10px; background: #eee; max-width: 80%; }
         .m.mine { background: #d3f0ff; margin-left: auto; }
         .m small { color: #777; font-size: 11px; display: block; }
-        .conv { padding: 12px; background: #fff; margin: 4px 0; border-radius: 6px; cursor: pointer; }
+        .conv { padding: 12px; background: #fff; margin: 4px 0; border-radius: 6px; cursor: pointer; border: 1px solid transparent; }
+        .conv:hover { border-color: #0088cc; }
+        .badge { font-size: 10px; color: #fff; background: #0088cc; padding: 2px 6px; border-radius: 8px; margin-left: 6px; }
+        .badge.group { background: #6a4; } .badge.channel { background: #a64; }
         #log, #log2 { font-size: 11px; color: #666; white-space: pre-wrap; max-height: 100px; overflow-y: auto; }
         #wsstat { padding: 6px; border-radius: 4px; font-size: 12px; margin-bottom: 6px; }
         .ok { background: #d4f8d4; } .bad { background: #f8d4d4; }
         #wslog { font-size: 10px; color: #555; background: #fff; padding: 6px;
             max-height: 120px; overflow-y: auto; white-space: pre-wrap; border-radius: 4px; margin-top: 6px; }
+        .box { background: #fff; padding: 10px; border-radius: 6px; margin: 8px 0; }
+        .box h4 { margin: 0 0 6px 0; font-size: 14px; }
+        .tabs { display: flex; gap: 6px; margin-bottom: 8px; }
+        .tabs button { background: #ddd; color: #333; }
+        .tabs button.active { background: #0088cc; color: #fff; }
+        #debug { font-size: 10px; color: #999; background: #fff; padding: 6px; margin-top: 6px; border-radius: 4px; white-space: pre-wrap; max-height: 80px; overflow-y: auto; }
     </style>
 </head>
 <body>
@@ -51,16 +60,40 @@
 <div id="s-list" class="screen">
     <div id="wsstat" class="bad">WS: не подключён</div>
     <h3>Чаты <button class="sec" style="width:auto;float:right" onclick="logout()">Выйти</button></h3>
-    <input id="target" placeholder="username собеседника">
-    <button onclick="startDirect()">Написать</button>
+
+    <div class="tabs">
+        <button id="tab-direct" class="active" onclick="switchTab('direct')">Личный</button>
+        <button id="tab-group" onclick="switchTab('group')">Группа / Канал</button>
+    </div>
+
+    <div id="box-direct" class="box">
+        <h4>Написать человеку</h4>
+        <input id="target" placeholder="username собеседника">
+        <button onclick="startDirect()">Написать</button>
+    </div>
+
+    <div id="box-group" class="box" style="display:none">
+        <h4>Создать группу или канал</h4>
+        <input id="g-title" placeholder="название">
+        <select id="g-type">
+            <option value="GROUP">Группа — пишут все</option>
+            <option value="CHANNEL">Канал — публикации</option>
+        </select>
+        <input id="g-members" placeholder="участники через запятую: vasya, petya">
+        <button onclick="createGroup()">Создать</button>
+        <div id="g-log" style="font-size:11px;color:#666;white-space:pre-wrap"></div>
+    </div>
+
     <div id="convs"></div>
     <div id="wslog"></div>
+    <div id="debug"></div>
 </div>
 
 <!-- 4. Переписка -->
 <div id="s-chat" class="screen">
-    <button class="sec" style="width:auto" onclick="show('s-list')">← Назад</button>
+    <button class="sec" style="width:auto" onclick="backToList()">← Назад</button>
     <h4 id="chat-title"></h4>
+    <button id="load-more" class="sec" style="display:none" onclick="loadMore()">Загрузить ещё</button>
     <div id="msgs"></div>
     <div style="display:flex; gap:6px">
         <input id="text" placeholder="сообщение" onkeydown="if(event.key==='Enter')send()">
@@ -77,13 +110,16 @@
     const WSURL = `ws://${H}:8888/ws/chat`;
 
     let token = localStorage.getItem('token');
+    let refreshToken = localStorage.getItem('refreshToken');
     let myId = null, ws = null, convId = null;
+    let nextCursor = null;
+    let myUsername = localStorage.getItem('username') || null;
 
     const $ = id => document.getElementById(id);
     const show = id => { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); $(id).classList.add('active'); };
     const log = (m, el='log') => { $(el).textContent += m + "\n"; };
+    const dbg = m => { const el = $('debug'); if (el) { el.textContent += m + "\n"; el.scrollTop = el.scrollHeight; } console.log('[DEBUG]', m); };
 
-    // лог сокета — виден на обоих экранах, чтобы не лезть в консоль
     function wslog(s) {
         const t = new Date().toLocaleTimeString() + "  " + s + "\n";
         ['wslog','wslog2'].forEach(id => {
@@ -98,12 +134,23 @@
         el.className = ok ? 'ok' : 'bad';
     }
 
+    function switchTab(tab) {
+        const isDirect = tab === 'direct';
+        $('box-direct').style.display = isDirect ? 'block' : 'none';
+        $('box-group').style.display  = isDirect ? 'none' : 'block';
+        $('tab-direct').className = isDirect ? 'active' : '';
+        $('tab-group').className  = isDirect ? '' : 'active';
+    }
+
     // ---- регистрация ----
     let pendingPassword = null;
+    let pendingUsername = null;
 
     async function doRegister() {
-        const body = { username: $('r-username').value, email: $('r-email').value, password: $('r-pass').value };
+        const username = $('r-username').value.trim();
+        const body = { username, email: $('r-email').value, password: $('r-pass').value };
         pendingPassword = body.password;
+        pendingUsername = username;
         const r = await fetch(`${USER}/api/user/registration`, {
             method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
         });
@@ -127,70 +174,193 @@
         });
         if (!r2.ok) { log("auth-service: " + await r2.text(), 'log2'); return; }
         const data = await r2.json();
-        saveToken(data.accessToken);
+        saveToken(data.accessToken, data.refreshToken, pendingUsername);
         pendingPassword = null;
         await openList();
     }
 
     async function doLogin() {
+        const email = $('l-email').value;
         const r = await fetch(`${AUTH}/auth/login`, {
             method: 'POST', headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({ email: $('l-email').value, password: $('l-pass').value })
+            body: JSON.stringify({ email, password: $('l-pass').value })
         });
         if (!r.ok) { log("Неверный email или пароль"); return; }
         const data = await r.json();
-        saveToken(data.accessToken);
+        saveToken(data.accessToken, data.refreshToken, null);
+
+        try {
+            const me = await apiFetch(`${USER}/api/user/me`);
+            if (me.ok) {
+                const profile = await me.json();
+                if (profile.username) {
+                    myUsername = profile.username;
+                    localStorage.setItem('username', myUsername);
+                }
+            }
+        } catch (e) { wslog('не удалось получить профиль: ' + e); }
+
         await openList();
     }
 
-    function saveToken(t) {
+    function saveToken(t, rt, username) {
         token = t;
         localStorage.setItem('token', t);
+        if (rt) {
+            refreshToken = rt;
+            localStorage.setItem('refreshToken', rt);
+        }
         myId = JSON.parse(atob(t.split('.')[1])).sub;
+        if (username) {
+            myUsername = username;
+            localStorage.setItem('username', username);
+        }
     }
 
     function logout() {
-        localStorage.removeItem('token'); token = null;
-        if (ws) { ws.onclose = null; ws.close(); ws = null; }   // без авто-переподключения
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('username');
+        token = null; refreshToken = null; myUsername = null;
+        if (ws) { ws.onclose = null; ws.close(); ws = null; }
         show('s-auth');
     }
 
     const auth = () => ({ 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' });
 
+    async function tryRefresh() {
+        if (!refreshToken) return false;
+        try {
+            const r = await fetch(`${AUTH}/auth/refresh`, {
+                method: 'POST', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({ refreshToken })
+            });
+            if (!r.ok) return false;
+            const data = await r.json();
+            saveToken(data.accessToken, data.refreshToken, myUsername);
+            wslog('accessToken обновлён через refresh');
+            return true;
+        } catch (e) {
+            wslog('refresh не удался: ' + e);
+            return false;
+        }
+    }
+
+    async function apiFetch(url, options = {}) {
+        options.headers = { ...(options.headers || {}), ...auth() };
+        let r = await fetch(url, options);
+
+        if (r.status === 401) {
+            const refreshed = await tryRefresh();
+            if (refreshed) {
+                options.headers = { ...(options.headers || {}), ...auth() };
+                r = await fetch(url, options);
+            } else {
+                logout();
+            }
+        }
+        return r;
+    }
+
     // ---- чаты ----
     async function openList() {
         show('s-list');
         connectWs();
-        const r = await fetch(`${CHAT}/chat/conversations`, { headers: auth() });
-        if (r.status === 401) { logout(); return; }
+        $('debug').textContent = '';
+        const r = await apiFetch(`${CHAT}/chat/conversations`);
+        if (r.status === 401) return;
         const convs = await r.json();
+        dbg('conversations JSON: ' + JSON.stringify(convs));   // ВИДНО, что реально пришло с бэка
         $('convs').innerHTML = '';
+        if (!convs.length) {
+            $('convs').innerHTML = '<div style="color:#888;font-size:13px;padding:8px">Чатов пока нет</div>';
+            return;
+        }
         convs.forEach(c => {
             const d = document.createElement('div');
             d.className = 'conv';
-            d.textContent = (c.title || 'Диалог') + '  [' + c.type + ']';
-            d.onclick = () => openChat(c.conversationId, c.title || 'Диалог');
+            const name = c.title && c.title.trim() ? c.title : ('Чат ' + c.conversationId.slice(0, 8));
+            let badge = '';
+            if (c.type === 'GROUP') badge = '<span class="badge group">Группа</span>';
+            else if (c.type === 'CHANNEL') badge = '<span class="badge channel">Канал</span>';
+            d.innerHTML = escapeHtml(name) + badge;
+            d.onclick = () => openChat(c.conversationId, name);
             $('convs').appendChild(d);
         });
     }
 
     async function startDirect() {
-        const r = await fetch(`${CHAT}/chat/conversations/direct`, {
-            method: 'POST', headers: auth(), body: JSON.stringify({ username: $('target').value })
+        const username = $('target').value.trim();
+        if (!username) { alert('Введите username'); return; }
+        const r = await apiFetch(`${CHAT}/chat/conversations/direct`, {
+            method: 'POST', body: JSON.stringify({ username })
         });
         if (!r.ok) { alert(await r.text()); return; }
         const c = await r.json();
-        openChat(c.conversationId, $('target').value);
+        $('target').value = '';
+        openChat(c.conversationId, username);
+    }
+
+    async function createGroup() {
+        const title = $('g-title').value.trim();
+        const type  = $('g-type').value;
+        if (!title) { alert('Введите название'); return; }
+
+        const members = $('g-members').value
+            .split(',').map(s => s.trim()).filter(s => s.length > 0);
+
+        const r = await apiFetch(`${CHAT}/chat/conversations/group`, {
+            method: 'POST', body: JSON.stringify({ title, type, members })
+        });
+        if (!r.ok) { log('Ошибка: ' + await r.text(), 'g-log'); return; }
+
+        const c = await r.json();
+        log(`Создан ${type}: ${title}`, 'g-log');
+        $('g-title').value = ''; $('g-members').value = '';
+        await openList();
+        openChat(c.conversationId, title);
+    }
+
+    function backToList() {
+        show('s-list');
+        openList();
     }
 
     async function openChat(id, title) {
         convId = id;
+        nextCursor = null;
         $('chat-title').textContent = title;
         $('msgs').innerHTML = '';
         show('s-chat');
         wslog('открыт чат ' + id);
-        const r = await fetch(`${CHAT}/chat/messages/${id}?limit=50`, { headers: auth() });
-        if (r.ok) (await r.json()).reverse().forEach(addMsg);
+
+        const r = await apiFetch(`${CHAT}/chat/messages/${id}?limit=50`);
+        if (r.ok) {
+            const page = await r.json();
+            wslog('история: ' + page.messages.length + ' сообщений, порядок id: '
+                + page.messages.map(m => m.messageId.slice(0,8)).join(','));
+            page.messages.reverse().forEach(m => addMsg(m));
+            applyCursor(page);
+        }
+    }
+
+    async function loadMore() {
+        if (!nextCursor) return;
+        const url = `${CHAT}/chat/messages/${convId}?limit=50`
+            + `&beforeBucket=${nextCursor.bucket}&beforeMessageId=${nextCursor.messageId}`;
+        const r = await apiFetch(url);
+        if (!r.ok) return;
+
+        const page = await r.json();
+        page.messages.forEach(m => addMsg(m, true));
+        applyCursor(page);
+    }
+
+    function applyCursor(page) {
+        nextCursor = page.hasMore
+            ? { bucket: page.nextBucket, messageId: page.nextMessageId }
+            : null;
+        $('load-more').style.display = nextCursor ? 'block' : 'none';
     }
 
     // ---- websocket ----
@@ -205,15 +375,25 @@
             ws.send(JSON.stringify({ type: 'auth', token: token }));
         };
 
-        ws.onmessage = e => {
-            wslog('<- ' + e.data);                       // ВИДНО ВСЁ, что шлёт сервер
+        ws.onmessage = async e => {
+            wslog('<- ' + e.data);
             const m = JSON.parse(e.data);
 
-            if (m.type === 'auth_ok') { wsStat('готов', true); return; }
-            if (m.type === 'error')   { wsStat('ОШИБКА: ' + m.error, false); alert('WS: ' + m.error); return; }
+            if (m.type === 'auth_ok') { wsStat('готов (userId=' + myId + ')', true); return; }
+
+            if (m.type === 'error') {
+                wsStat('ОШИБКА: ' + m.error, false);
+                if (m.error && /токен/i.test(m.error)) {
+                    const refreshed = await tryRefresh();
+                    if (refreshed) { ws.close(); connectWs(); return; }
+                }
+                alert('WS: ' + m.error);
+                return;
+            }
+
             if (m.type === 'message') {
                 if (m.conversationId === convId) addMsg(m);
-                else wslog('сообщение из другого чата, пропускаю');
+                else wslog('сообщение из другого чата (' + m.conversationId.slice(0,8) + '), пропускаю');
             }
         };
 
@@ -235,16 +415,34 @@
         $('text').value = '';
     }
 
-    function addMsg(m) {
+    // addMsg ВСЕГДА добавляет в конец DOM-списка (append), кроме явной догрузки старых (prepend)
+    function addMsg(m, prepend = false) {
         const d = document.createElement('div');
-        d.className = 'm' + (m.senderId === myId ? ' mine' : '');
-        d.innerHTML = '<small>' + (m.senderId === myId ? 'я' : String(m.senderId).slice(0, 8)) + '</small>';
+        const isMine = m.senderId === myId;
+        d.className = 'm' + (isMine ? ' mine' : '');
+
+        const label = isMine
+            ? (myUsername || 'я')
+            : (m.senderName || String(m.senderId).slice(0, 8));
+
+        d.innerHTML = '<small>' + escapeHtml(label) + '</small>';
         d.appendChild(document.createTextNode(m.content));
-        $('msgs').appendChild(d);
+
+        if (prepend) {
+            $('msgs').insertBefore(d, $('msgs').firstChild);
+        } else {
+            $('msgs').appendChild(d);
+        }
         $('msgs').scrollTop = $('msgs').scrollHeight;
     }
 
-    if (token) { saveToken(token); openList(); }
+    function escapeHtml(s) {
+        const d = document.createElement('div');
+        d.textContent = s;
+        return d.innerHTML;
+    }
+
+    if (token) { saveToken(token, refreshToken, myUsername); openList(); }
 </script>
 </body>
 </html>

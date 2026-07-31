@@ -9,12 +9,12 @@ import java.util.UUID;
 
 @ApplicationScoped
 public class AuthRepository implements PanacheRepository<Auth> {
-    public Optional<Auth> findById(UUID id){
-        return find("id" , id).firstResultOptional();
+    public Optional<Auth> findById(UUID userId){
+        return find("userId" , userId).firstResultOptional();
     }
 
-    public boolean existsById(UUID id) {
-        return count("id = ?1", id) > 0;
+    public boolean existsById(UUID userId) {
+        return count("userId  = ?1", userId) > 0;
     }
 
 

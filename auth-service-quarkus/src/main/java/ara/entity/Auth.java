@@ -23,7 +23,7 @@ import java.util.UUID;
 @AllArgsConstructor
 public class Auth {
     @Id
-    @Column(nullable = false)
+    @Column(nullable = false , name = "user_id")
     private UUID userId;
 
     @NotBlank(message = "имя пользователя не может быть пустым")

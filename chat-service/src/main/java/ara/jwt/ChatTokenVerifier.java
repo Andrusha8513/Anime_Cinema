@@ -7,16 +7,19 @@ import io.jsonwebtoken.Jwts;
 import io.quarkus.runtime.StartupEvent;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
+import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
+import org.bouncycastle.cert.X509CertificateHolder;
+import org.bouncycastle.openssl.PEMParser;
+import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.KeyFactory;
-import java.security.interfaces.RSAPublicKey;
-import java.security.spec.X509EncodedKeySpec;
-import java.util.Base64;
+import java.security.PublicKey;
 import java.util.UUID;
 
 @ApplicationScoped
@@ -28,7 +31,7 @@ public class ChatTokenVerifier {
     @ConfigProperty(name = "app.jwt.access.issuer")
     String expectedIssuer;
 
-    private RSAPublicKey publicKey;
+    private PublicKey publicKey;
 
     void onStart(@Observes StartupEvent ev) {
         this.publicKey = loadPublicKey(publicKeyLocation);
@@ -63,30 +66,43 @@ public class ChatTokenVerifier {
     }
 
 
-    private RSAPublicKey loadPublicKey(String location) {
+    private PublicKey loadPublicKey(String location) {
         try {
-            byte[] pemBytes;
-            if (location.startsWith("file:")) {
-                pemBytes = Files.readAllBytes(Path.of(location.substring("file:".length())));
-            } else {
-                String path = location.startsWith("classpath:")
-                        ? location.substring("classpath:".length()) : location;
-                try (InputStream is = getClass().getClassLoader().getResourceAsStream(path)) {
-                    if (is == null) {
-                        throw new IllegalStateException("Публичный ключ не найден: " + location);
-                    }
-                    pemBytes = is.readAllBytes();
+            String pemContent = readPem(location);
+            try (PEMParser parser = new PEMParser(new StringReader(pemContent))) {
+                Object obj = parser.readObject();
+                if (obj == null) {
+                    throw new IllegalStateException("Пустой или некорректный PEM: " + location);
                 }
+                JcaPEMKeyConverter converter = new JcaPEMKeyConverter();
+                if (obj instanceof SubjectPublicKeyInfo spki) {
+                    return converter.getPublicKey(spki);
+                }
+                if (obj instanceof X509CertificateHolder cert) {
+                    return converter.getPublicKey(cert.getSubjectPublicKeyInfo());
+                }
+                throw new IllegalStateException(
+                        "Неподдерживаемый тип PEM (" + obj.getClass().getSimpleName() + "): " + location);
             }
-            String pem = new String(pemBytes, StandardCharsets.UTF_8)
-                    .replace("-----BEGIN PUBLIC KEY-----", "")
-                    .replace("-----END PUBLIC KEY-----", "")
-                    .replaceAll("\\s", "");
-            byte[] der = Base64.getDecoder().decode(pem);
-            return (RSAPublicKey) KeyFactory.getInstance("RSA")
-                    .generatePublic(new X509EncodedKeySpec(der));
-        } catch (Exception e) {
+        } catch (IOException e) {
             throw new IllegalStateException("Не удалось загрузить публичный ключ: " + location, e);
         }
+    }
+
+    private String readPem(String location) throws IOException {
+        byte[] bytes;
+        if (location.startsWith("file:")) {
+            bytes = Files.readAllBytes(Path.of(location.substring("file:".length())));
+        } else {
+            String path = location.startsWith("classpath:")
+                    ? location.substring("classpath:".length()) : location;
+            try (InputStream is = getClass().getClassLoader().getResourceAsStream(path)) {
+                if (is == null) {
+                    throw new IllegalStateException("Публичный ключ не найден: " + location);
+                }
+                bytes = is.readAllBytes();
+            }
+        }
+        return new String(bytes, StandardCharsets.UTF_8);
     }
 }

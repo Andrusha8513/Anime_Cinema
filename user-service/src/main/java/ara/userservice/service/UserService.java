@@ -3,10 +3,7 @@ package ara.userservice.service;
 import ara.userservice.component.CodeGenerator;
 import ara.userservice.component.EventPayloadFactory;
 import ara.userservice.component.IdGenerator;
-import ara.userservice.dto.ConfirmationResponse;
-import ara.userservice.dto.RedisUserDto;
-import ara.userservice.dto.RegistrationDto;
-import ara.userservice.dto.RegistrationResponse;
+import ara.userservice.dto.*;
 import ara.userservice.entity.User;
 import ara.userservice.exeption.InvalidConfirmationCodeException;
 import ara.userservice.exeption.UserAlreadyExistsException;
@@ -121,14 +118,23 @@ public class UserService {
             outboxRepository.save(outboxEventMapper.toEmailEvent(user.getId(), emailPayload));
         }
 
+        @Transactional(readOnly = true)
+        public UserResponse getUser(UUID id){
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new UserNotFoundException("Пользователь не найден"));
+
+        return userMapper.toDto(user);
+        }
 
         public void updateUsername (UUID userId, String newUsername){
             User user = userRepository.findById(userId)
                     .orElseThrow(() -> new UserNotFoundException("Пользователь с таким id: " + userId + " не найден"));
 
+
             user.setUsername(newUsername);
-            userRepository.save(user);
-            outboxRepository.save(outboxEventMapper.toNewUsernameEvent(user.getId(), newUsername));
+
+            String payload = eventPayloadFactory.newUsernamePayload(user.getId(), newUsername);
+            outboxRepository.save(outboxEventMapper.toNewUsernameEvent(user.getId(), payload));
         }
 
         public void updateEmail (UUID userId, String newEmail){
@@ -184,35 +190,5 @@ public class UserService {
     public UUID currentUserId(Jwt jwt) {
         return UUID.fromString(jwt.getSubject());
     }
-//        private Optional<RegistrationResponse> handleExistingUser (RegistrationDto registrationDto){
-//            Optional<User> existingUser = userRepository.findByEmail(registrationDto.email());
-//
-//            if (existingUser.isEmpty()) {
-//                return Optional.empty();
-//            }
-//
-//            User user = existingUser.get();
-//
-//            if (user.getStatus() == UserStatus.ACTIVE) {
-//                throw new UserAlreadyExistsException(
-//                        "Пользователь с почтой " + registrationDto.email() + " уже существует");
-//            }
-//
-//            log.info("Повторная регистрация для неактивированного пользователя {}", user.getId());
-//
-//            String newToken = UUID.randomUUID().toString();
-//            String newCode = codeGenerator.generateConfirmationCode();
-//
-//            outboxRepository.save(outboxEventMapper.toAuthEvent(user.getId(), eventPayloadFactory.authRegistrationPayload(user.getId(), user.getUsername(), user.getEmail(), newToken)));
-//            outboxRepository.save(outboxEventMapper.toEmailEvent(user.getId(), eventPayloadFactory.emailRegistrationPayload(user.getId(), user.getEmail(), newCode)));
-//            outboxRepository.save(outboxEventMapper.toCodeEvent(user.getId(), eventPayloadFactory.codePayload(user.getId(), newCode)));
-//
-//            user.setStatus(UserStatus.PENDING_PASSWORD);
-//            userRepository.save(user);
-//            return Optional.of(new RegistrationResponse(
-//                    "Повторная регистрация. Установите пароль.",
-//                    newToken
-//            ));
-//        }
 
     }

@@ -4,12 +4,11 @@ import com.datastax.oss.driver.api.core.CqlSession;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
 import jakarta.inject.Singleton;
-import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.net.InetSocketAddress;
 
-@Slf4j
+
 @ApplicationScoped
 public class ScyllaConfig {
 

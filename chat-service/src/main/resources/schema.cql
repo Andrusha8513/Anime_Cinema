@@ -27,12 +27,11 @@ CREATE TABLE IF NOT EXISTS chat.messages_by_conversation
 CREATE TABLE IF NOT EXISTS chat.conversations_by_user
 (
     user_id           uuid,
-    last_message_at   timestamp,
     conversation_id   uuid,
     conversation_type text,
-    title             text,
-    PRIMARY KEY (user_id, last_message_at, conversation_id)
-) WITH CLUSTERING ORDER BY (last_message_at DESC);
+    PRIMARY KEY (user_id, conversation_id)
+);
+
 
 CREATE TABLE IF NOT EXISTS chat.users_by_username
 (

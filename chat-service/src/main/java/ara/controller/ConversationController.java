@@ -6,6 +6,7 @@ import ara.dto.CreateDirectRequest;
 import ara.dto.CreateGroupRequest;
 import ara.jwt.ChatTokenVerifier;
 import ara.service.ConversationService;
+import io.smallrye.common.annotation.Blocking;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
@@ -39,6 +40,7 @@ public class ConversationController {
     // Создать группу или канал
     @POST
     @Path("/group")
+    @Blocking
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response createGroup(@HeaderParam("Authorization") String auth,

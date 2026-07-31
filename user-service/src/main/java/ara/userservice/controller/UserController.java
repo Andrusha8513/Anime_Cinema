@@ -71,4 +71,10 @@ public class UserController {
         userService.confirmNewEmail(userId, request.code());
         return ResponseEntity.ok("Email успешно изменён.");
     }
+
+    @GetMapping("/getUser")
+    public ResponseEntity<UserResponse> getUser(@AuthenticationPrincipal Jwt jwt){
+        UUID userId = UUID.fromString(jwt.getSubject());
+        return ResponseEntity.ok(userService.getUser(userId));
+    }
 }

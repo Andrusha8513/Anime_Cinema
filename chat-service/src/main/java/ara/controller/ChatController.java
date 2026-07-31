@@ -1,12 +1,13 @@
 package ara.controller;
 
+import ara.dto.MessageCursor;
+import ara.dto.MessagePage;
+import ara.dto.MessagePageResponse;
 import ara.jwt.ChatTokenVerifier;
-import ara.repository.MessageRepository;
 import ara.dto.MessageResponse;
-import ara.dto.SendMessageRequest;
 
-import ara.dto.Message;
-import ara.web_socket.ChatMessageService;
+import ara.service.ChatMessageService;
+import io.smallrye.common.annotation.Blocking;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -25,17 +26,27 @@ public class ChatController {
         this.verifier = verifier;
     }
 
+
+
+
     @GET
     @Path("/messages/{conversationId}")
+    @Blocking
     @Produces(MediaType.APPLICATION_JSON)
-    public Response recept(@HeaderParam("Authorization") String authHeader,
-                           @PathParam("conversationId") UUID conversationId ,
-                           @QueryParam("limit") @DefaultValue("50") int limit){
+    public Response history(@HeaderParam("Authorization") String authHeader,
+                            @PathParam("conversationId") UUID conversationId,
+                            @QueryParam("beforeBucket") Integer beforeBucket,
+                            @QueryParam("beforeMessageId") UUID beforeMessageId,
+                            @QueryParam("limit") @DefaultValue("50") int limit) {
+
         UUID userId = verifier.verifyBearerHeader(authHeader);
-        List<MessageResponse> responses = chatMessageService.getHistory(conversationId , userId , limit)
-                .stream()
-                .map(MessageResponse::from).toList();
-        return Response.ok(responses).build();
+
+        MessageCursor cursor = (beforeBucket != null && beforeMessageId != null)
+                ? new MessageCursor(beforeBucket, beforeMessageId)
+                : null;
+
+        MessagePage page = chatMessageService.getHistory(conversationId, userId, cursor, limit);
+        return Response.ok(MessagePageResponse.from(page)).build();
     }
 }
 

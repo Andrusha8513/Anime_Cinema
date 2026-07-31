@@ -41,6 +41,7 @@ dependencies {
     runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
     runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
     implementation("io.quarkus:quarkus-elytron-security")
+    implementation("org.bouncycastle:bcpkix-jdk18on:1.84")
 
     // ============ Password4j для паролей ============
     implementation("com.password4j:password4j:1.7.3")

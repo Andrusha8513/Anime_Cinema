@@ -2,6 +2,7 @@ package ara.web_socket;
 
 import ara.dto.IncomingWsMessage;
 import ara.dto.OutgoingWsMessage;
+import ara.service.ChatMessageService;
 import io.quarkus.websockets.next.*;
 import io.smallrye.common.annotation.Blocking;
 import org.jboss.logging.Logger;

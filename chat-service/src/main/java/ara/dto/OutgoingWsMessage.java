@@ -9,20 +9,21 @@ public record OutgoingWsMessage(
         UUID conversationId,
         UUID messageId,
         UUID senderId,
+        String senderName ,
         String content,
         Instant createdAt
 ) {
     public static OutgoingWsMessage authOk(){
-        return new OutgoingWsMessage("auth_ok", null, null, null, null, null, null);
+        return new OutgoingWsMessage("auth_ok", null, null, null, null, null, null  , null);
 
     }
 
     public static OutgoingWsMessage error(String msg) {
-        return new OutgoingWsMessage("error", msg, null, null, null, null, null);
+        return new OutgoingWsMessage("error", msg, null, null, null, null, null , null);
     }
 
-    public static OutgoingWsMessage of(ara.dto.Message m) {
+    public static OutgoingWsMessage of(Message m , String senderName) {
         return new OutgoingWsMessage("message", null, m.conversationId(),
-                m.messageId(), m.senderId(), m.content(), m.createdAt());
+                m.messageId(), m.senderId(), senderName ,m.content(), m.createdAt());
     }
 }

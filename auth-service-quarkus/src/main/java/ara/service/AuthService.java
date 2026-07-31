@@ -27,7 +27,7 @@ import java.util.*;
 @ApplicationScoped
 public class AuthService {
 
-    //    private final RegistrationTokenRepository registrationTokenRepository;
+
     private static final Duration REGISTRATION_JTI_TTL = Duration.ofMinutes(5);
     @ConfigProperty(name = "app.security.max-active-sessions-per-user")
     int maxActiveSessions;
